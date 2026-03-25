@@ -1,0 +1,34 @@
+{
+  "aigis": {
+    "version": "1.0.0",
+    "name": "A.I.G.I.S.",
+    "description": "Adaptive Integrated General Intelligence System"
+  },
+  "n8n": {
+    "url": "${N8N_URL:-http://localhost:5678}",
+    "workflow_name": "A.I.G.I.S. - メインワークフロー"
+  },
+  "memory": {
+    "type": "window_buffer",
+    "storage": "sqlite",
+    "window_size": 10,
+    "session_key": "sessionId",
+    "database_path": "./data/aigis_memory.db"
+  },
+  "search": {
+    "primary": "tavily",
+    "fallback": "duckduckgo",
+    "max_results": 5,
+    "search_depth": "basic"
+  },
+  "llm": {
+    "provider": "anthropic",
+    "model": "claude-opus-4-6",
+    "max_tokens": 4096,
+    "temperature": 0.7
+  },
+  "git": {
+    "branch": "claude/aigis-memory-search-EpDjz",
+    "remote": "origin"
+  }
+}
