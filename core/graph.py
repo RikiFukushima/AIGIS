@@ -1,6 +1,11 @@
 """
 A.I.G.I.S. メイングラフ
-LangGraph による15エージェントのオーケストレーション
+LangGraph による15エージェントオーケストレーション
+
+グラフ構造:
+  START → aigis
+  aigis → [14専門家エージェント | END]  (Conditional Edge)
+  各専門家 → aigis                       (反復思考ループ)
 """
 from __future__ import annotations
 
@@ -18,9 +23,10 @@ logger = logging.getLogger(__name__)
 
 def _route_from_aigis(state: AigisState) -> Union[str, type]:
     """
-    アイギスの判断を元に次のノードへルーティングする
-    - FINISH または反復上限超過 → END
-    - それ以外 → 対応するエージェントノード名
+    AIGIS の判断を元に次のノードへルーティングする
+
+    Returns:
+        ノード名 (str) または END
     """
     next_agent = state.get("next_agent", "FINISH")
     iteration = state.get("iteration_count", 0)
@@ -30,25 +36,26 @@ def _route_from_aigis(state: AigisState) -> Union[str, type]:
         return END
 
     if iteration >= MAX_ITERATIONS:
-        logger.warning(f"[Graph] 反復上限 ({MAX_ITERATIONS}) に達しました → END")
+        logger.warning(f"[Graph] 反復上限 ({MAX_ITERATIONS}) 到達 → 強制終了")
         return END
 
     if next_agent not in ROUTABLE_AGENTS:
-        logger.error(f"[Graph] 不明なエージェント: {next_agent} → END")
+        logger.error(f"[Graph] 未知エージェント '{next_agent}' → END")
         return END
 
-    logger.info(f"[Graph] → {next_agent} (iteration={iteration})")
+    logger.info(f"[Graph] aigis → {next_agent} (iter={iteration})")
     return next_agent
 
 
 def build_graph() -> StateGraph:
     """
-    グラフを構築して返す
+    LangGraph の StateGraph を構築して返す
 
-    構造:
-        START → aigis
-        aigis → [scouter | deus | ... 各スペシャリスト | END] (条件分岐)
-        各スペシャリスト → aigis  (結果をスーパーバイザーへ返す)
+    ノード:
+      - aigis: スーパーバイザー
+      - scouter: Web検索 (Priority 1 実装)
+      - deus, archive, matrix, vibe: ツール付き実装
+      - chronos, valor, palette, zenon, signal, justice, vita, babel, mumon: 汎用実装
     """
     builder = StateGraph(AigisState)
 
@@ -57,39 +64,42 @@ def build_graph() -> StateGraph:
     # スーパーバイザー
     builder.add_node("aigis", aigis_node)
 
-    # Priority 1: 実装済みエージェント
+    # Scouter (直接インポート)
     builder.add_node("scouter", scouter_node)
 
-    # Priority 2: スペシャリスト（汎用ノード or 個別実装）
+    # 残り13名のスペシャリスト
     for agent_name in ROUTABLE_AGENTS:
         if agent_name == "scouter":
-            continue  # 既に追加済み
+            continue
         node_fn = get_specialist_node(agent_name)
         builder.add_node(agent_name, node_fn)
+        logger.debug(f"ノード追加: {agent_name}")
 
     # ===== エッジ定義 =====
 
-    # エントリーポイント
+    # エントリーポイント: START → aigis
     builder.add_edge(START, "aigis")
 
-    # アイギス → 条件分岐
+    # aigis → 条件分岐（14専門家 または END）
     routing_map = {name: name for name in ROUTABLE_AGENTS}
     routing_map[END] = END
     builder.add_conditional_edges("aigis", _route_from_aigis, routing_map)
 
-    # 全スペシャリスト → アイギスへ戻る（反復思考ループ）
+    # 全専門家 → aigis へ戻る（反復思考ループ）
     for agent_name in ROUTABLE_AGENTS:
         builder.add_edge(agent_name, "aigis")
 
     return builder.compile()
 
 
-# シングルトンインスタンス（起動時に1度だけビルド）
+# ===== シングルトン =====
 _graph_instance = None
 
 
 def get_graph():
     global _graph_instance
     if _graph_instance is None:
+        logger.info("[Graph] グラフをビルド中...")
         _graph_instance = build_graph()
+        logger.info("[Graph] ビルド完了")
     return _graph_instance

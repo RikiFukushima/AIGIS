@@ -1,6 +1,6 @@
 """
-検索ツール
-DuckDuckGo を使ったWeb検索
+検索ツール - DuckDuckGo
+Scouter・Vibe 用
 """
 from __future__ import annotations
 
@@ -13,21 +13,21 @@ logger = logging.getLogger(__name__)
 
 
 def get_search_tools() -> List[BaseTool]:
-    """スカウター用の検索ツールリストを返す"""
+    """DuckDuckGo 検索ツールを返す"""
     try:
         from langchain_community.tools import DuckDuckGoSearchRun
-        search = DuckDuckGoSearchRun(
+        tool = DuckDuckGoSearchRun(
             name="web_search",
             description=(
-                "インターネットで最新情報を検索するツール。"
-                "ニュース、価格、リアルタイム情報の取得に使用する。"
-                "入力: 検索クエリ文字列"
+                "インターネットでリアルタイム情報を検索するツール。"
+                "最新ニュース・価格・トレンド・ファクトの取得に使用する。"
+                "入力: 検索クエリ（日本語または英語）"
             ),
         )
         logger.info("DuckDuckGoSearchRun: 初期化成功")
-        return [search]
+        return [tool]
     except ImportError:
-        logger.warning("duckduckgo-search がインストールされていません")
+        logger.warning("duckduckgo-search がインストールされていません: pip install duckduckgo-search")
         return []
     except Exception as e:
         logger.error(f"検索ツール初期化失敗: {e}")
