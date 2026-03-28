@@ -27,7 +27,7 @@ def scouter_node(state: AigisState) -> Dict[str, Any]:
     agent = create_react_agent(
         model=_scouter_llm,
         tools=_search_tools,
-        state_modifier=system_prompt,
+        prompt=system_prompt,
     )
 
     result = agent.invoke({"messages": state["messages"]})

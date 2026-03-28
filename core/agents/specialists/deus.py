@@ -28,9 +28,8 @@ def deus_node(state: AigisState) -> Dict[str, Any]:
     if not shell_tools:
         logger.warning("[Deus] ShellTool なし → テキスト回答モード")
         from langchain_core.messages import SystemMessage
-        llm = build_llm(temperature=0.1)
         messages = [SystemMessage(content=system_prompt)] + state["messages"]
-        response = llm.invoke(messages)
+        response = _deus_llm.invoke(messages)
         result = str(response.content)
         return {
             "messages": [AIMessage(content=result, name="deus")],
@@ -42,7 +41,7 @@ def deus_node(state: AigisState) -> Dict[str, Any]:
     agent = create_react_agent(
         model=_deus_llm,
         tools=shell_tools,
-        state_modifier=system_prompt,
+        prompt=system_prompt,
     )
 
     result = agent.invoke({"messages": state["messages"]})

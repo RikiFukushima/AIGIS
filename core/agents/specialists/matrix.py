@@ -27,12 +27,10 @@ def matrix_node(state: AigisState) -> Dict[str, Any]:
 
     if not repl_tools:
         logger.warning("[Matrix] PythonREPLTool なし → テキスト回答モード")
-        from langchain_core.messages import SystemMessage, AIMessage as AI
-        from agents.base import build_llm
-        llm = build_llm(temperature=0.1)
+        from langchain_core.messages import SystemMessage
         messages = [SystemMessage(content=system_prompt)] + state["messages"]
-        response = llm.invoke(messages)
-        msg = AI(content=str(response.content), name="matrix")
+        response = _matrix_llm.invoke(messages)
+        msg = AIMessage(content=str(response.content), name="matrix")
         return {
             "messages": [msg],
             "responding_agent": "matrix",
@@ -43,7 +41,7 @@ def matrix_node(state: AigisState) -> Dict[str, Any]:
     agent = create_react_agent(
         model=_matrix_llm,
         tools=repl_tools,
-        state_modifier=system_prompt,
+        prompt=system_prompt,
     )
 
     result = agent.invoke({"messages": state["messages"]})

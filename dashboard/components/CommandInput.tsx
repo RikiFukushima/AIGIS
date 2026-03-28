@@ -4,6 +4,7 @@ import { KeyboardEvent, useRef, useState } from 'react'
 
 interface Props {
   onSubmit: (query: string) => void
+  onCancel: () => void
   isRunning: boolean
   isConnected: boolean
 }
@@ -14,10 +15,11 @@ const QUICK_COMMANDS = [
   '現在のシステム状態を確認して',
 ]
 
-export function CommandInput({ onSubmit, isRunning, isConnected }: Props) {
+export function CommandInput({ onSubmit, onCancel, isRunning, isConnected }: Props) {
   const [value, setValue] = useState('')
   const [history, setHistory] = useState<string[]>([])
   const [historyIdx, setHistoryIdx] = useState(-1)
+  const [isComposing, setIsComposing] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   const handleSubmit = () => {
@@ -30,6 +32,7 @@ export function CommandInput({ onSubmit, isRunning, isConnected }: Props) {
   }
 
   const handleKeyDown = (e: KeyboardEvent<HTMLInputElement>) => {
+    if (isComposing || e.nativeEvent.isComposing || e.keyCode === 229) return
     if (e.key === 'Enter') {
       handleSubmit()
     } else if (e.key === 'ArrowUp') {
@@ -65,7 +68,7 @@ export function CommandInput({ onSubmit, isRunning, isConnected }: Props) {
               px-2 py-0.5 rounded transition-all duration-150
               disabled:opacity-30 disabled:cursor-not-allowed"
           >
-            {cmd.slice(0, 20)}{cmd.length > 20 ? '…' : ''}
+            {cmd.slice(0, 20)}{cmd.length > 20 ? '...' : ''}
           </button>
         ))}
       </div>
@@ -81,7 +84,7 @@ export function CommandInput({ onSubmit, isRunning, isConnected }: Props) {
             ${isRunning ? 'text-neon-orange animate-pulse' :
               !isConnected ? 'text-neon-red' : 'text-neon-green text-glow-sm'}`}
         >
-          {isRunning ? '⟳' : !isConnected ? '✗' : '▶'}
+          {isRunning ? '\u27F3' : !isConnected ? '\u2717' : '\u25B6'}
         </span>
 
         {/* 入力フィールド */}
@@ -90,13 +93,15 @@ export function CommandInput({ onSubmit, isRunning, isConnected }: Props) {
           type="text"
           className="command-input"
           placeholder={
-            !isConnected ? 'サーバーに接続中...' :
-            isRunning    ? '処理中です。完了までお待ちください...' :
-                           'A.I.G.I.S. に命令を入力 (↑↓で履歴、Enterで送信)'
+            !isConnected ? '\u30B5\u30FC\u30D0\u30FC\u306B\u63A5\u7D9A\u4E2D...' :
+            isRunning    ? '\u51E6\u7406\u4E2D\u3067\u3059\u3002\u5B8C\u4E86\u307E\u3067\u304A\u5F85\u3061\u304F\u3060\u3055\u3044...' :
+                           'A.I.G.I.S. \u306B\u547D\u4EE4\u3092\u5165\u529B (\u2191\u2193\u3067\u5C65\u6B74\u3001Enter\u3067\u9001\u4FE1)'
           }
           value={value}
           onChange={e => setValue(e.target.value)}
           onKeyDown={handleKeyDown}
+          onCompositionStart={() => setIsComposing(true)}
+          onCompositionEnd={() => setIsComposing(false)}
           disabled={isRunning || !isConnected}
           autoFocus
           spellCheck={false}
@@ -110,18 +115,33 @@ export function CommandInput({ onSubmit, isRunning, isConnected }: Props) {
           </span>
         )}
 
-        {/* 送信ボタン */}
-        <button
-          onClick={handleSubmit}
-          disabled={isRunning || !isConnected || !value.trim()}
-          className="shrink-0 text-[10px] tracking-widest px-3 py-1
-            border border-neon-green/30 text-neon-green/60
-            hover:border-neon-green hover:text-neon-green hover:shadow-neon-sm
-            disabled:opacity-20 disabled:cursor-not-allowed
-            transition-all duration-150 rounded-sm"
-        >
-          SEND
-        </button>
+        {/* 停止ボタン（実行中のみ表示） */}
+        {isRunning && (
+          <button
+            onClick={onCancel}
+            className="shrink-0 text-[10px] tracking-widest px-3 py-1
+              border border-neon-red/50 text-neon-red
+              hover:border-neon-red hover:bg-neon-red/10 hover:shadow-[0_0_8px_rgba(255,50,50,0.3)]
+              transition-all duration-150 rounded-sm animate-pulse"
+          >
+            STOP
+          </button>
+        )}
+
+        {/* 送信ボタン（非実行中のみ表示） */}
+        {!isRunning && (
+          <button
+            onClick={handleSubmit}
+            disabled={!isConnected || !value.trim()}
+            className="shrink-0 text-[10px] tracking-widest px-3 py-1
+              border border-neon-green/30 text-neon-green/60
+              hover:border-neon-green hover:text-neon-green hover:shadow-neon-sm
+              disabled:opacity-20 disabled:cursor-not-allowed
+              transition-all duration-150 rounded-sm"
+          >
+            SEND
+          </button>
+        )}
       </div>
     </div>
   )

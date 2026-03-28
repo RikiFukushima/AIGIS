@@ -25,7 +25,7 @@ import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional, Set
+from typing import Any, Dict, Set
 
 import psutil
 import uvicorn
@@ -40,10 +40,12 @@ sys.path.insert(0, str(Path(__file__).parent))
 from config import AGENT_REGISTRY, ROUTABLE_AGENTS
 
 logger = logging.getLogger("aigis.server")
-logging.basicConfig(
-    level=logging.INFO,
-    format="[%(levelname)s] %(name)s: %(message)s",
-)
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("[%(levelname)s] %(name)s: %(message)s"))
+    logger.handlers = [_handler]
+    logger.propagate = False
 
 
 # ============================================================
@@ -61,12 +63,19 @@ class ConnectionManager:
         await ws.accept()
         async with self._lock:
             self._connections.add(ws)
-        logger.info(f"WS接続: 現在 {len(self._connections)} クライアント")
+        logger.info(f"WS接続: 現在 {self.client_count} クライアント")
 
     async def disconnect(self, ws: WebSocket) -> None:
         async with self._lock:
             self._connections.discard(ws)
-        logger.info(f"WS切断: 現在 {len(self._connections)} クライアント")
+        logger.info(f"WS切断: 現在 {self.client_count} クライアント")
+
+    @property
+    def client_count(self) -> int:
+        return len(self._connections)
+
+    def has_clients(self) -> bool:
+        return bool(self._connections)
 
     async def broadcast(self, message: Dict[str, Any]) -> None:
         """全クライアントにメッセージを送信する（失敗した接続は自動削除）"""
@@ -106,6 +115,7 @@ class AigisAppState:
         self.current_session_id: str = ""
         self.active_agent: str = ""
         self.agent_history: list[str] = []
+        self.cancel_requested: bool = False     # キャンセル要求フラグ
         self._query_lock = asyncio.Lock()       # 同時実行防止
 
     def reset(self) -> None:
@@ -113,6 +123,7 @@ class AigisAppState:
         self.current_query = ""
         self.active_agent = ""
         self.agent_history = []
+        self.cancel_requested = False
 
 
 app_state = AigisAppState()
@@ -212,6 +223,11 @@ async def _run_graph_streaming(query: str, session_id: str) -> Dict[str, Any]:
 
     try:
         async for event in graph.astream_events(initial_state, version="v2"):
+            # キャンセルチェック
+            if app_state.cancel_requested:
+                logger.info(f"[Graph] キャンセル要求を検出 — 実行を中断します")
+                break
+
             kind: str = event["event"]
             name: str = event.get("name", "")
             metadata: dict = event.get("metadata", {})
@@ -350,7 +366,7 @@ async def _metrics_broadcast_loop() -> None:
     """2秒ごとにシステムメトリクスを全クライアントへブロードキャストする"""
     while True:
         await asyncio.sleep(2)
-        if manager._connections:
+        if manager.has_clients():
             await manager.broadcast({
                 "type": "metrics",
                 "data": _metrics_snapshot(),
@@ -396,7 +412,7 @@ async def health_check():
         "system": "A.I.G.I.S.",
         "version": "2.0.0",
         "agents": len(AGENT_REGISTRY),
-        "ws_clients": len(manager._connections),
+        "ws_clients": manager.client_count,
         "timestamp": _now(),
     }
 
@@ -528,11 +544,10 @@ async def n8n_webhook(payload: N8nWebhookPayload):
     })
 
     if app_state.is_running:
-        return {
-            "status": "queued",
-            "message": "現在処理中のクエリがあるため、完了後に実行されます。",
-            "session_id": session_id,
-        }
+        raise HTTPException(
+            status_code=409,
+            detail="現在別のクエリが処理中です。完了後に再試行してください。",
+        )
 
     asyncio.create_task(_execute_query(query, session_id))
 
@@ -581,6 +596,18 @@ async def websocket_endpoint(ws: WebSocket):
                     if query and not app_state.is_running:
                         session_id = msg.get("session_id") or str(uuid.uuid4())[:8]
                         asyncio.create_task(_execute_query(query, session_id))
+                elif msg.get("type") == "cancel":
+                    if app_state.is_running:
+                        app_state.cancel_requested = True
+                        await manager.broadcast({
+                            "type": "log",
+                            "data": {
+                                "agent": "system",
+                                "message": "⛔ キャンセル要求を受信しました",
+                                "level": "warning",
+                                "timestamp": _now(),
+                            },
+                        })
             except json.JSONDecodeError:
                 pass
 
@@ -599,7 +626,7 @@ if __name__ == "__main__":
     uvicorn.run(
         "server:app",
         host="0.0.0.0",
-        port=8000,
+        port=9999,
         reload=True,
         log_level="info",
     )

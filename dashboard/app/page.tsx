@@ -15,6 +15,7 @@ export default function CommandCenter() {
     isConnected, isRunning,
     currentQuery, n8nAlert, lastResult,
     sendQuery,
+    sendCancel,
   } = useAigisWebSocket()
 
   // 時刻の更新（ヘッダー用）
@@ -62,6 +63,7 @@ export default function CommandCenter() {
         <div className="shrink-0">
           <CommandInput
             onSubmit={sendQuery}
+            onCancel={sendCancel}
             isRunning={isRunning}
             isConnected={isConnected}
           />

@@ -7,7 +7,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict
 
-from langchain_core.messages import AIMessage, SystemMessage
+from langchain_core.messages import AIMessage
 from langgraph.prebuilt import create_react_agent
 
 from state import AigisState
@@ -27,8 +27,7 @@ def archive_node(state: AigisState) -> Dict[str, Any]:
     if not rag_tools:
         # ChromaDB が未準備の場合、その旨を回答
         logger.info("[Archive] RAGツールなし → 直接回答モード")
-        from langchain_core.messages import AIMessage as AI
-        msg = AI(
+        msg = AIMessage(
             content=(
                 "【Archive】知識ベースがまだ構築されていません。\n"
                 "~/Aigis/knowledge/ にドキュメントを配置後、以下を実行してください:\n"
@@ -46,7 +45,7 @@ def archive_node(state: AigisState) -> Dict[str, Any]:
     agent = create_react_agent(
         model=_archive_llm,
         tools=rag_tools,
-        state_modifier=system_prompt,
+        prompt=system_prompt,
     )
 
     result = agent.invoke({"messages": state["messages"]})

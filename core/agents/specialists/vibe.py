@@ -27,10 +27,8 @@ def vibe_node(state: AigisState) -> Dict[str, Any]:
     if not search_tools:
         # 検索ツールなし → テキスト分析のみ
         from langchain_core.messages import SystemMessage
-        from agents.base import build_llm
-        llm = build_llm(temperature=0.5)
         messages = [SystemMessage(content=system_prompt)] + state["messages"]
-        response = llm.invoke(messages)
+        response = _vibe_llm.invoke(messages)
         result = str(response.content)
         return {
             "messages": [AIMessage(content=result, name="vibe")],
@@ -42,7 +40,7 @@ def vibe_node(state: AigisState) -> Dict[str, Any]:
     agent = create_react_agent(
         model=_vibe_llm,
         tools=search_tools,
-        state_modifier=system_prompt,
+        prompt=system_prompt,
     )
 
     result = agent.invoke({"messages": state["messages"]})

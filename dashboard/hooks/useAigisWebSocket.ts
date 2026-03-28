@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { AgentInfo, AgentStatus, LogEntry, SystemMetrics, WsMessage } from '@/types'
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:8000/ws'
+const WS_URL = process.env.NEXT_PUBLIC_WS_URL ?? 'ws://localhost:9999/ws'
 const MAX_LOG_ENTRIES = 500
 const RECONNECT_DELAY_MS = 3000
 
@@ -285,5 +285,12 @@ export function useAigisWebSocket() {
     }
   }, [])
 
-  return { ...state, sendQuery }
+  // ── キャンセル送信 ──────────────────────────────────────────
+  const sendCancel = useCallback(() => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: 'cancel' }))
+    }
+  }, [])
+
+  return { ...state, sendQuery, sendCancel }
 }
